@@ -1,9 +1,9 @@
-from langchain_huggingface import HuggingFaceEmbeddings
-from src.config import EMBEDDING_MODEL
+from langchain_community.embeddings import HuggingFaceEmbeddings
+import streamlit as st
 
+@st.cache_resource
 def get_embeddings():
     embeddings = HuggingFaceEmbeddings(
-        model_name=EMBEDDING_MODEL
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
-
     return embeddings
