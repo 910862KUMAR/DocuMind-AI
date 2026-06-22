@@ -8,63 +8,143 @@ from src.retriever import get_retriever
 from src.qa_chain import get_qa_chain
 from utils.helpers import save_uploaded_file
 
-st.set_page_config(page_title="DocuMind AI")
+# ---------------- PAGE CONFIG ---------------- #
 
-st.title("📚 DocuMind AI")
-st.write("Upload a PDF and ask questions")
+st.set_page_config(
+    page_title="DocuMind AI",
+    page_icon="📚",
+    layout="wide"
+)
+
+# ---------------- SESSION STATE ---------------- #
+
+if "retriever" not in st.session_state:
+    st.session_state.retriever = None
+
+if "llm" not in st.session_state:
+    st.session_state.llm = None
+
+if "current_file" not in st.session_state:
+    st.session_state.current_file = None
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# ---------------- SIDEBAR ---------------- #
+
+with st.sidebar:
+    st.title("📚 DocuMind AI")
+
+    st.markdown("""
+    ### Features
+    ✅ PDF Upload  
+    ✅ Semantic Search  
+    ✅ Gemini Powered  
+    ✅ RAG Pipeline  
+    """)
+
+    if st.button("🗑️ Clear Chat"):
+        st.session_state.chat_history = []
+
+    st.markdown("---")
+    st.caption("Built with LangChain + ChromaDB + Gemini")
+
+# ---------------- MAIN UI ---------------- #
+
+st.title("📄 Chat with Your PDF")
+st.write("Upload a PDF and ask questions in natural language.")
 
 uploaded_file = st.file_uploader(
     "Upload PDF",
     type=["pdf"]
 )
 
+# ---------------- PROCESS PDF ---------------- #
+
 if uploaded_file:
 
-    with st.spinner("Processing PDF..."):
+    # Process only when a new file is uploaded
+    if st.session_state.current_file != uploaded_file.name:
 
-        file_path = save_uploaded_file(uploaded_file)
+        with st.spinner("Processing PDF..."):
 
-        documents = load_pdf(file_path)
+            file_path = save_uploaded_file(uploaded_file)
 
-        chunks = split_documents(documents)
+            documents = load_pdf(file_path)
 
-        embeddings = get_embeddings()
+            chunks = split_documents(documents)
 
-        db = create_vector_store(
-            chunks,
-            embeddings
-        )
+            embeddings = get_embeddings()
 
-        retriever = get_retriever(db)
+            db = create_vector_store(
+                chunks,
+                embeddings
+            )
 
-        llm = get_qa_chain(retriever)
+            st.session_state.retriever = get_retriever(db)
 
-    st.success("PDF processed successfully!")
+            st.session_state.llm = get_qa_chain(
+                st.session_state.retriever
+            )
 
-    question = st.text_input("Ask a question")
+            st.session_state.current_file = uploaded_file.name
+
+        st.success("✅ PDF processed successfully!")
+
+# ---------------- ASK QUESTION ---------------- #
+
+if st.session_state.retriever:
+
+    question = st.chat_input(
+        "Ask something about your document..."
+    )
 
     if question:
 
         with st.spinner("Generating answer..."):
 
-            docs = retriever.invoke(question)
+            docs = st.session_state.retriever.invoke(
+                question
+            )
 
             context = "\n".join(
                 [doc.page_content for doc in docs]
             )
 
             prompt = f"""
-            Answer the question based on the context below.
+            Answer ONLY from the provided context.
 
             Context:
             {context}
 
             Question:
             {question}
+
+            If the answer is not found in the context,
+            say:
+
+            'The information is not available in the uploaded document.'
             """
 
-            response = llm.invoke(prompt)
+            response = st.session_state.llm.invoke(
+                prompt
+            )
 
-        st.subheader("Answer")
+            answer = response.content
 
-        st.write(response.content)
+            st.session_state.chat_history.append(
+                ("You", question)
+            )
+
+            st.session_state.chat_history.append(
+                ("DocuMind AI", answer)
+            )
+
+# ---------------- DISPLAY CHAT ---------------- #
+
+for sender, message in st.session_state.chat_history:
+
+    with st.chat_message(
+        "user" if sender == "You" else "assistant"
+    ):
+        st.markdown(message)
