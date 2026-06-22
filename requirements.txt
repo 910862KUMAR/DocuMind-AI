@@ -2,10 +2,11 @@ streamlit
 langchain
 langchain-community
 langchain-google-genai
-langchain-huggingface
 langchain-text-splitters
 chromadb
 sentence-transformers
+transformers
+torch
 pypdf
 python-dotenv
 protobuf==3.20.3
